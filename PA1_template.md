@@ -1,0 +1,234 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+author: "Tu Nombre"
+date: "2026-10-07"
+output: 
+  html_document:
+    keep_md: true
+---
+
+
+
+## Introducción
+
+Este informe analiza los datos de un dispositivo de monitorización de actividad personal (Fitbit, Nike Fuelband, Jawbone Up) que recoge el número de pasos dados en intervalos de 5 minutos, durante los meses de octubre y noviembre de 2012.
+
+## Carga y preprocesamiento de los datos
+
+
+``` r
+# Leer el conjunto de datos desde la carpeta data
+datos <- read.csv("data/activity.csv", header = TRUE, stringsAsFactors = FALSE)
+
+# Convertir la columna date a formato fecha (YYYY-MM-DD)
+datos$date <- as.Date(datos$date, format = "%Y-%m-%d")
+
+# Explorar la estructura del dataset
+str(datos)
+```
+
+```
+## 'data.frame':	17568 obs. of  3 variables:
+##  $ steps   : int  NA NA NA NA NA NA NA NA NA NA ...
+##  $ date    : Date, format: "2012-10-01" "2012-10-01" ...
+##  $ interval: int  0 5 10 15 20 25 30 35 40 45 ...
+```
+
+``` r
+summary(datos)
+```
+
+```
+##      steps             date               interval     
+##  Min.   :  0.00   Min.   :2012-10-01   Min.   :   0.0  
+##  1st Qu.:  0.00   1st Qu.:2012-10-16   1st Qu.: 588.8  
+##  Median :  0.00   Median :2012-10-31   Median :1177.5  
+##  Mean   : 37.38   Mean   :2012-10-31   Mean   :1177.5  
+##  3rd Qu.: 12.00   3rd Qu.:2012-11-15   3rd Qu.:1766.2  
+##  Max.   :806.00   Max.   :2012-11-30   Max.   :2355.0  
+##  NA's   :2304
+```
+## ¿Cuál es el número medio total de pasos dados al día?
+
+
+``` r
+# Calcular el total de pasos por día (ignorando los NA)
+total_pasos_dia <- aggregate(steps ~ date, data = datos, FUN = sum, na.rm = TRUE)
+
+# Hacer el histograma del total de pasos por día
+hist(total_pasos_dia$steps,
+     breaks = 20,
+     col = "steelblue",
+     main = "Histograma del total de pasos por día",
+     xlab = "Total de pasos por día",
+     ylab = "Frecuencia (días)")
+```
+
+![plot of chunk total-pasos-dia](figure/total-pasos-dia-1.png)
+
+``` r
+# Calcular y mostrar la media y la mediana
+media_pasos <- mean(total_pasos_dia$steps)
+mediana_pasos <- median(total_pasos_dia$steps)
+
+media_pasos
+```
+
+```
+## [1] 10766.19
+```
+
+``` r
+mediana_pasos
+```
+
+```
+## [1] 10765
+```
+## ¿Cuál es el patrón medio de actividad diaria?
+
+
+``` r
+# Calcular el número medio de pasos por intervalo de 5 minutos
+media_intervalo <- aggregate(steps ~ interval, data = datos, FUN = mean, na.rm = TRUE)
+
+# Gráfico de series temporales
+plot(media_intervalo$interval,
+     media_intervalo$steps,
+     type = "l",
+     col = "darkred",
+     lwd = 2,
+     main = "Patrón medio de actividad diaria",
+     xlab = "Intervalo de 5 minutos",
+     ylab = "Número medio de pasos")
+```
+
+![plot of chunk patron-diario](figure/patron-diario-1.png)
+
+``` r
+# Encontrar el intervalo con el número máximo de pasos en promedio
+max_intervalo <- media_intervalo$interval[which.max(media_intervalo$steps)]
+max_valor <- max(media_intervalo$steps)
+
+max_intervalo
+```
+
+```
+## [1] 835
+```
+
+``` r
+max_valor
+```
+
+```
+## [1] 206.1698
+```
+## Imputar valores perdidos
+
+
+``` r
+# 1. Calcular el número total de valores NA en el dataset original
+total_na <- sum(is.na(datos$steps))
+total_na
+```
+
+```
+## [1] 2304
+```
+
+``` r
+# 2. Crear un nuevo dataset copiando el original
+datos_imputados <- datos
+
+# 3. Rellenar los NA con la media del intervalo correspondiente
+for (i in 1:nrow(datos_imputados)) {
+  if (is.na(datos_imputados$steps[i])) {
+    intervalo_actual <- datos_imputados$interval[i]
+    datos_imputados$steps[i] <- media_intervalo$steps[media_intervalo$interval == intervalo_actual]
+  }
+}
+
+# Verificar que ya no queden NAs
+sum(is.na(datos_imputados$steps))
+```
+
+```
+## [1] 0
+```
+
+``` r
+# 4. Calcular el total de pasos por día con los datos imputados
+total_pasos_dia_imp <- aggregate(steps ~ date, data = datos_imputados, FUN = sum)
+
+# 5. Histograma de los datos imputados
+hist(total_pasos_dia_imp$steps,
+     breaks = 20,
+     col = "darkseagreen",
+     main = "Histograma del total de pasos por día (datos imputados)",
+     xlab = "Total de pasos por día",
+     ylab = "Frecuencia (días)")
+```
+
+![plot of chunk imputar-datos](figure/imputar-datos-1.png)
+
+``` r
+# 6. Calcular y mostrar la nueva media y mediana
+media_imp <- mean(total_pasos_dia_imp$steps)
+mediana_imp <- median(total_pasos_dia_imp$steps)
+
+media_imp
+```
+
+```
+## [1] 10766.19
+```
+
+``` r
+mediana_imp
+```
+
+```
+## [1] 10766.19
+```
+## ¿Existen diferencias en los patrones de actividad entre los días laborables y los fines de semana?
+
+
+``` r
+# Crear la variable factor. Usamos format(date, "%u") para evitar problemas de idioma.
+# %u devuelve 1 para Lunes, ..., 7 para Domingo.
+datos_imputados$tipo_dia <- ifelse(
+  as.numeric(format(datos_imputados$date, "%u")) %in% c(6, 7),
+  "fin de semana",
+  "día laborable"
+)
+datos_imputados$tipo_dia <- factor(datos_imputados$tipo_dia,
+                                   levels = c("día laborable", "fin de semana"))
+
+# Calcular la media de pasos por intervalo separando por tipo de día
+media_por_tipo <- aggregate(steps ~ interval + tipo_dia, data = datos_imputados, FUN = mean)
+
+# Hacer el gráfico de panel
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+
+# Panel 1: días laborables
+lab <- subset(media_por_tipo, tipo_dia == "día laborable")
+plot(lab$interval, lab$steps, type = "l", col = "blue", lwd = 2,
+     main = "Días laborables",
+     xlab = "Intervalo de 5 minutos",
+     ylab = "Pasos medios")
+
+# Panel 2: fines de semana
+fin <- subset(media_por_tipo, tipo_dia == "fin de semana")
+plot(fin$interval, fin$steps, type = "l", col = "darkorange", lwd = 2,
+     main = "Fines de semana",
+     xlab = "Intervalo de 5 minutos",
+     ylab = "Pasos medios")
+```
+
+![plot of chunk laborable-finde](figure/laborable-finde-1.png)
+
+``` r
+# Resetear el layout de los gráficos para futuros gráficos
+par(mfrow = c(1, 1))
+```
